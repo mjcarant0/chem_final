@@ -14,6 +14,10 @@
 rgb_lcd lcd;  // LCD object
 Servo myServo;  // Servo object
 
+// Timing variables
+unsigned long previousMillis = 0;
+const long interval = 1000;  // Interval to check CO2 level
+
 void setup() {
   pinMode(anInput, INPUT);
   pinMode(buzzerPin, OUTPUT);  // Buzzer pin as output
@@ -34,54 +38,64 @@ void setup() {
 }
 
 void loop() {
-  int co2now[10];
-  int co2raw = 0;
-  int co2ppm = 0;
-  int co2Sum = 0;
+  // Get the current time
+  unsigned long currentMillis = millis();
 
-  // Take 10 readings to average the CO2 level
-  for (int x = 0; x < 10; x++) {
-    co2now[x] = analogRead(anInput);
-    delay(200);
+  if (currentMillis - previousMillis >= interval) {
+    // Save the last time CO2 level was checked
+    previousMillis = currentMillis;
+
+    int co2now[10];
+    int co2raw = 0;
+    int co2ppm = 0;
+    int co2Sum = 0;
+
+    // Take 10 readings to average the CO2 level
+    for (int x = 0; x < 10; x++) {
+      co2now[x] = analogRead(anInput);
+      delay(200);  // This delay can be removed if you're using millis-based timing
+    }
+
+    // Average the readings
+    for (int x = 0; x < 10; x++) {
+      co2Sum += co2now[x];
+    }
+
+    co2raw = co2Sum / 10;
+    co2ppm = co2raw - co2Zero;
+
+    // Print raw sensor value and calculated PPM to the Serial Monitor for debugging
+    Serial.print("Raw CO2 sensor value: ");
+    Serial.println(co2raw);
+    Serial.print("CO2 PPM (after calibration): ");
+    Serial.println(co2ppm);
+
+    // Display CO2 reading on the LCD
+    lcd.clear();
+    lcd.setCursor(0, 0);  // First line
+    lcd.print("CO2: ");
+    lcd.print(co2ppm);
+    lcd.print(" PPM");
+
+    // If CO2 exceeds the threshold, turn on the buzzer, red LED and move the servo to 150 degrees
+    if (co2ppm >= threshold) {
+      digitalWrite(buzzerPin, HIGH);  // Turn on buzzer
+      digitalWrite(redLEDPin, HIGH);  // Turn on red LED
+      digitalWrite(blueLEDPin, LOW);  // Turn off blue LED
+      myServo.write(150);             // Move the servo to 150 degrees
+      lcd.setCursor(0, 1);
+      lcd.print("CO2 High!");
+      Serial.println("CO2 High! Servo at 150 degrees.");
+    } else {
+      digitalWrite(buzzerPin, LOW);   // Turn off buzzer
+      digitalWrite(redLEDPin, LOW);   // Turn off red LED
+      digitalWrite(blueLEDPin, HIGH); // Turn on blue LED
+      myServo.write(90);              // Move the servo to 90 degrees (normal position)
+      lcd.setCursor(0, 1);
+      lcd.print("CO2 Normal");
+      Serial.println("CO2 Normal. Servo at 90 degrees.");
+    }
   }
 
-  // Average the readings
-  for (int x = 0; x < 10; x++) {
-    co2Sum += co2now[x];
-  }
-
-  co2raw = co2Sum / 10;
-  co2ppm = co2raw - co2Zero;
-
-  // Print raw sensor value and calculated PPM to the Serial Monitor for debugging
-  Serial.print("Raw CO2 sensor value: ");
-  Serial.println(co2raw);
-  Serial.print("CO2 PPM (after calibration): ");
-  Serial.println(co2ppm);
-
-  // Display CO2 reading on the LCD
-  lcd.clear();
-  lcd.setCursor(0, 0);  // First line
-  lcd.print("CO2: ");
-  lcd.print(co2ppm);
-  lcd.print(" PPM");
-
-  // If CO2 exceeds the threshold, turn on the buzzer, red LED and move the servo to 150 degrees
-  if (co2ppm >= threshold) {
-    digitalWrite(buzzerPin, HIGH);  // Turn on buzzer
-    digitalWrite(redLEDPin, HIGH);  // Turn on red LED
-    digitalWrite(blueLEDPin, LOW);  // Turn off blue LED
-    myServo.write(150);             // Move the servo to 150 degrees
-    lcd.setCursor(0, 1);
-    lcd.print("CO2 High!");
-  } else {
-    digitalWrite(buzzerPin, LOW);   // Turn off buzzer
-    digitalWrite(redLEDPin, LOW);   // Turn off red LED
-    digitalWrite(blueLEDPin, HIGH); // Turn on blue LED
-    myServo.write(90);              // Move the servo to 90 degrees (normal position)
-    lcd.setCursor(0, 1);
-    lcd.print("CO2 Normal");
-  }
-
-  delay(1000);  // Delay before the next reading
+  // Add other functions here if needed for real-time monitoring
 }
